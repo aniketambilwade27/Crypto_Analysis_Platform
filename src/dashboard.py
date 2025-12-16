@@ -602,14 +602,18 @@ with tab2:
     st.subheader(f"Pair Analysis: {symbol1.upper()} vs {symbol2.upper()}")
     
     if symbol1 != symbol2:
-        # Get data for both symbols
-        df1 = st.session_state.storage.get_ticks(symbol=symbol1, limit=1000)
-        df2 = st.session_state.storage.get_ticks(symbol=symbol2, limit=1000)
+        # Get data for both symbols from same time window (last 10 minutes)
+        from datetime import datetime, timedelta
+        start_time = (datetime.now() - timedelta(minutes=10)).isoformat()
+        
+        df1 = st.session_state.storage.get_ticks(symbol=symbol1, start_time=start_time)
+        df2 = st.session_state.storage.get_ticks(symbol=symbol2, start_time=start_time)
         
         if not df1.empty and not df2.empty:
             # Align timestamps
-            df1_rs = df1.set_index('timestamp').resample('1S')['price'].mean()
-            df2_rs = df2.set_index('timestamp').resample('1S')['price'].mean()
+            # Use ffill() to handle seconds with no ticks (use last known price)
+            df1_rs = df1.set_index('timestamp').resample('1S')['price'].mean().ffill()
+            df2_rs = df2.set_index('timestamp').resample('1S')['price'].mean().ffill()
             
             df_aligned = pd.DataFrame({
                 'price1': df1_rs,
@@ -782,7 +786,13 @@ with tab2:
                             st.error(f"ADF test failed: {adf_result['error']}")
                 
             else:
-                st.info(f"Need at least {window_size} data points for pair analysis")
+                current_points = len(df_aligned)
+                required_points = window_size
+                wait_estimate = max(0, required_points - current_points)
+                st.info(
+                    f"📊 Collecting data for pair analysis: {current_points}/{required_points} points "
+                    f"(~{wait_estimate}s remaining at 1s timeframe)"
+                )
         else:
             st.warning("Insufficient data for both symbols")
     else:
@@ -919,7 +929,7 @@ with tab3:
                     price_dict[sym.upper()] = prices
             
             if len(price_dict) >= 2:
-                corr_window = st.slider("Correlation Window (data points)", 50, 500, 200, 50)
+                corr_window = st.slider("Correlation Window (data points)", 20, 500, 50, 10)
                 corr_matrix = st.session_state.analytics.compute_correlation_matrix(
                     price_dict, window=corr_window
                 )
@@ -956,11 +966,17 @@ with tab3:
                     - **Red (≤0.3)**: Weak/negative correlation - good for diversification
                     """)
                 else:
-                    st.info("Need more data for correlation analysis")
+                    st.info(
+                        "⏳ Accumulating data for correlation analysis... "
+                        "Reduce 'Correlation Window' slider or wait ~50s after startup for best results."
+                    )
             else:
                 st.warning("Need at least 2 symbols with data for correlation heatmap")
         else:
-            st.warning("Waiting for data from multiple symbols...")
+            st.info(
+                "⏳ Waiting for data from multiple symbols... "
+                "Please wait ~30s after starting the application."
+            )
     else:
         st.warning("No data available for statistics")
 
@@ -969,8 +985,12 @@ with tab4:
     st.subheader("Mean Reversion Signals & Backtest")
     
     if symbol1 != symbol2:
-        df1 = st.session_state.storage.get_ticks(symbol=symbol1, limit=1000)
-        df2 = st.session_state.storage.get_ticks(symbol=symbol2, limit=1000)
+        # Fetch last 10 minutes of data for both symbols to ensure overlap
+        from datetime import datetime, timedelta
+        start_time = (datetime.now() - timedelta(minutes=10)).isoformat()
+        
+        df1 = st.session_state.storage.get_ticks(symbol=symbol1, start_time=start_time)
+        df2 = st.session_state.storage.get_ticks(symbol=symbol2, start_time=start_time)
         
         if not df1.empty and not df2.empty:
             # Align and compute spread/z-score
@@ -1053,6 +1073,18 @@ with tab4:
                         st.error("🔴 SHORT Signal - Sell spread (Short asset 1, Long asset 2)")
                     else:
                         st.info("⚪ NEUTRAL - No position")
+                else:
+                    st.error("❌ Failed to compute hedge ratio. Try a different method or wait for more data.")
+            else:
+                current_points = len(df_aligned)
+                required_points = window_size
+                wait_estimate = max(0, required_points - current_points)
+                st.info(
+                    f"📊 Collecting data for backtest: {current_points}/{required_points} points "
+                    f"(~{wait_estimate}s remaining at 1s timeframe)"
+                )
+        else:
+            st.warning("⚠️ Insufficient data for both symbols. Please wait for data collection...")
     else:
         st.info("Select different symbols to generate trading signals")
 

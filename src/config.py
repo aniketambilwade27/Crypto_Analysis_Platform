@@ -20,7 +20,7 @@ class Config:
     }
     
     # Analytics defaults
-    DEFAULT_WINDOW = 20
+    DEFAULT_WINDOW = 10  # Optimized for 1s timeframe (11s wait vs 21s)
     DEFAULT_ZSCORE_THRESHOLD = 2.0
     DEFAULT_HEDGE_METHOD = 'ols'
     

@@ -23,6 +23,12 @@ Real-time cryptocurrency analytics platform with WebSocket data ingestion, stati
 - **Data Export**: Download analytics and statistics
 - **Auto-refresh**: Configurable dashboard refresh intervals
 
+## Architecture
+
+![System Architecture](architecture_diagram.png)
+
+The platform follows a layered architecture with clear separation of concerns, enabling real-time data processing and analysis for cryptocurrency pairs trading strategies.
+
 ## Quick Start
 
 ### Prerequisites
