@@ -20,7 +20,7 @@ ENV/
 *.swo
 *~
 
-# Database
+# Database (exclude production, include sample)
 *.db
 *.sqlite
 *.sqlite3
@@ -29,6 +29,7 @@ ENV/
 data/*.db
 data/*.db-shm
 data/*.db-wal
+!data/sample_data.db
 
 # Logs
 logs/
