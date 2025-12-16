@@ -388,22 +388,38 @@ class AnalyticsEngine:
         signals = AnalyticsEngine.detect_mean_reversion_signals(zscore, entry, exit)
         
         # Compute returns
-        returns = prices.pct_change()
+        returns = prices.pct_change().fillna(0)
         strategy_returns = signals.shift(1) * returns
+        strategy_returns = strategy_returns.fillna(0)
         
-        # Performance metrics
-        total_return = (1 + strategy_returns).prod() - 1
-        sharpe = strategy_returns.mean() / strategy_returns.std() * np.sqrt(252 * 24 * 60)
+        # Cap extreme returns to avoid inf
+        strategy_returns = strategy_returns.clip(-0.5, 0.5)
         
+        # Performance metrics with safeguards
         cumulative_returns = (1 + strategy_returns).cumprod()
-        max_drawdown = (cumulative_returns / cumulative_returns.cummax() - 1).min()
+        total_return = cumulative_returns.iloc[-1] - 1 if len(cumulative_returns) > 0 else 0
+        
+        # Sharpe ratio with zero-variance protection
+        mean_ret = strategy_returns.mean()
+        std_ret = strategy_returns.std()
+        if std_ret > 1e-8:  # Avoid division by near-zero
+            sharpe = mean_ret / std_ret * np.sqrt(252 * 24 * 60)
+        else:
+            sharpe = 0.0
+        
+        # Max drawdown
+        if len(cumulative_returns) > 0:
+            cummax = cumulative_returns.cummax()
+            max_drawdown = ((cumulative_returns / cummax) - 1).min()
+        else:
+            max_drawdown = 0
         
         num_trades = (signals.diff() != 0).sum()
         
         return {
-            'total_return': total_return * 100,
-            'sharpe_ratio': sharpe,
-            'max_drawdown': max_drawdown * 100,
-            'num_trades': num_trades,
+            'total_return': float(total_return * 100),
+            'sharpe_ratio': float(sharpe),
+            'max_drawdown': float(max_drawdown * 100),
+            'num_trades': int(num_trades),
             'cumulative_returns': cumulative_returns
         }
